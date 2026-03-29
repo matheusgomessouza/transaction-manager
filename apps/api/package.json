@@ -9,6 +9,9 @@
     "test": "vitest run",
     "lint": "eslint src --ext .ts"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.13.0",
     "cors": "^2.8.5",
