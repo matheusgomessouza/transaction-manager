@@ -1,13 +1,26 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../../lib/api';
 
-const MOCK_USERS = [
-  { id: 'user_1042', status: 'active', balance: '$12,450.00', lastActive: '2_mins_ago' },
-  { id: 'user_8891', status: 'inactive', balance: '$8,120.50', lastActive: '1_day_ago' },
-  { id: 'user_9012', status: 'active', balance: '-$45.00', lastActive: '5_mins_ago' },
-];
+type User = {
+  id: string;
+  name: string;
+  balance: number;
+  createdAt: string;
+};
 
 export default function UsersList() {
-  const users = useMemo(() => MOCK_USERS, []);
+  const {
+    data: users = [],
+    isLoading,
+    isError,
+  } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await api.get('/users');
+      return response.data;
+    },
+  });
 
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
@@ -36,44 +49,42 @@ export default function UsersList() {
         <h2 className="text-section-title font-medium text-textPrimary">// All Users</h2>
         <div className="flex flex-col gap-2 w-full overflow-x-auto">
           <div className="flex w-full min-w-[800px] py-2 gap-4">
-            <span className="text-small text-textTertiary w-48 flex-shrink-0">User ID</span>
-            <span className="text-small text-textTertiary w-32 flex-shrink-0">Status</span>
+            <span className="text-small text-textTertiary w-64 flex-shrink-0">User ID</span>
+            <span className="text-small text-textTertiary flex-1">Name</span>
             <span className="text-small text-textTertiary w-32 flex-shrink-0">Balance</span>
-            <span className="text-small text-textTertiary flex-1">Last Active</span>
-            <span className="text-small text-textTertiary w-32 flex-shrink-0">Actions</span>
+            <span className="text-small text-textTertiary w-48 flex-shrink-0">Created At</span>
           </div>
           <div className="w-full min-w-[800px] h-px bg-borderSecondary" />
+
+          {isLoading && <span className="text-textTertiary py-4">Loading users...</span>}
+          {isError && <span className="text-accent-error py-4">Failed to load users</span>}
 
           {users.map((user, idx) => (
             <React.Fragment key={user.id}>
               <div className="flex w-full min-w-[800px] py-2 gap-4 items-center">
-                <span className="text-base text-textPrimary w-48 flex-shrink-0">{user.id}</span>
-                <span
-                  className={`text-base w-32 flex-shrink-0 ${
-                    user.status === 'active' ? 'text-accent-green' : 'text-textTertiary'
-                  }`}
-                >
-                  {user.status}
+                <span className="text-base text-textTertiary w-64 flex-shrink-0 truncate">
+                  {user.id}
                 </span>
+                <span className="text-base text-textPrimary flex-1 font-medium">{user.name}</span>
                 <span
                   className={`text-base font-semibold w-32 flex-shrink-0 ${
-                    user.balance.startsWith('-') ? 'text-accent-error' : 'text-textPrimary'
+                    user.balance < 0 ? 'text-accent-error' : 'text-accent-green'
                   }`}
                 >
-                  {user.balance}
+                  ${user.balance.toFixed(2)}
                 </span>
-                <span className="text-base text-textTertiary flex-1">{user.lastActive}</span>
-                <div className="w-32 flex-shrink-0">
-                  <button className="text-accent-info font-medium text-small hover:underline">
-                    view_tx -&gt;
-                  </button>
-                </div>
+                <span className="text-base text-textTertiary w-48 flex-shrink-0">
+                  {new Date(user.createdAt).toLocaleDateString()}
+                </span>
               </div>
               {idx < users.length - 1 && (
                 <div className="w-full min-w-[800px] h-px bg-borderSecondary" />
               )}
             </React.Fragment>
           ))}
+          {!isLoading && users.length === 0 && (
+            <span className="text-textTertiary py-4">No users found.</span>
+          )}
         </div>
       </section>
     </div>
