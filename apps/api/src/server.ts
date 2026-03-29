@@ -1,13 +1,37 @@
-import express from 'express';
+import 'express-async-errors';
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import { routes } from './routes';
+import { logger } from './lib/logger';
 
 const app = express();
+
+app.use(cors());
 app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-const PORT = process.env.PORT || 3333;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.use(routes);
+
+// Middleware global de tratamento de erros
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ error: err.message, stack: err.stack }, 'Erro não tratado capturado pelo Express');
+
+  res.status(500).json({
+    status: 'error',
+    message: 'Internal server error',
+  });
 });
+
+const PORT = process.env.PORT || 3333;
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
+  });
+}
+
+export { app };

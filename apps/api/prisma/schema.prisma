@@ -4,5 +4,55 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url      = env("DATABASE_URL")
+}
+
+model User {
+  id    String @id @default(uuid())
+  name  String
+
+  // Relacionamentos para facilitar consultas
+  transactions         Transaction[] @relation("UserTransactions")
+  transfersSent        Transaction[] @relation("TransfersSent")
+  transfersReceived    Transaction[] @relation("TransfersReceived")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum TransactionType {
+  deposit
+  withdraw
+  transfer
+}
+
+model Transaction {
+  id        String          @id // ID fornecido pelo payload (garante Idempotência)
+  type      TransactionType
+  amount    Decimal         @db.Decimal(10, 2)
+  timestamp DateTime
+
+  // Relacionamentos (opcionais dependendo do tipo da transação)
+  userId     String?
+  user       User?   @relation("UserTransactions", fields: [userId], references: [id])
+
+  fromUserId String?
+  fromUser   User?   @relation("TransfersSent", fields: [fromUserId], references: [id])
+
+  toUserId   String?
+  toUser     User?   @relation("TransfersReceived", fields: [toUserId], references: [id])
+
+  // Metadados de processamento
+  createdAt  DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model InvalidTransaction {
+  id        String   @id @default(uuid())
+  payload   Json     // Armazena o payload original que falhou
+  reason    String   // Motivo da falha (ex: "Usuário não encontrado", "Saldo insuficiente")
+  createdAt DateTime @default(now())
 }
