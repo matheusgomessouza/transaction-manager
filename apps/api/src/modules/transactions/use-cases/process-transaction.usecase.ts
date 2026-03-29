@@ -1,8 +1,8 @@
-import { logger } from '../lib/logger';
+import { logger } from '../../../lib/logger';
 import { transactionSchema } from '../schemas/transaction.schema';
 import { calculateBalance } from './calculate-balance.usecase';
 import { transactionRepository } from '../repositories/transaction.repository';
-import { userRepository } from '../repositories/user.repository';
+import { userRepository } from '../../users/repositories/user.repository';
 
 // Estratégia de Retry simples para falhas transitórias de banco de dados
 async function withRetry<T>(operation: () => Promise<T>, retries = 3): Promise<T> {

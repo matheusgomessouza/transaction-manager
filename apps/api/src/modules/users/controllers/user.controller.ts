@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { userRepository } from '../repositories/user.repository';
-import { calculateBalance } from '../use-cases/calculate-balance.usecase';
+import { calculateBalance } from '../../transactions/use-cases/calculate-balance.usecase';
 
 export class UserController {
   async list(req: Request, res: Response) {

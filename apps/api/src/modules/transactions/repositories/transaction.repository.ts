@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../../../lib/prisma';
 import { Transaction, InvalidTransaction, Prisma } from '@prisma/client';
 
 export class TransactionRepository {
