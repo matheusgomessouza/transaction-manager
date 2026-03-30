@@ -57,6 +57,13 @@ export class TransactionRepository {
     });
     return result._sum.amount?.toNumber() || 0;
   }
+
+  async deleteById(id: string): Promise<Transaction | null> {
+    const existing = await prisma.transaction.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    return prisma.transaction.delete({ where: { id } });
+  }
 }
 
 export const transactionRepository = new TransactionRepository();

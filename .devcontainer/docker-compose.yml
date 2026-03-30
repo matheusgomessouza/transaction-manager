@@ -3,13 +3,13 @@ volumes:
 
 services:
   app:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
 
     volumes:
       - ../..:/workspaces:cached
-      
+
     # Overrides default command so things don't shut down after the process ends.
     command: sleep infinity
 
@@ -20,8 +20,11 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    ports:
+      - '3333:3333'
+      - '5173:5173'
 
-    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally. 
+    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
 
   db:
@@ -30,7 +33,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5

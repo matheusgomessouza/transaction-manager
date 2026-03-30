@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { processTransaction } from '../use-cases/process-transaction.usecase';
 import { transactionRepository } from '../repositories/transaction.repository';
+import { logger } from '../../../lib/logger';
 
 export class TransactionController {
   async process(req: Request, res: Response) {
@@ -35,6 +36,19 @@ export class TransactionController {
   async getInvalid(req: Request, res: Response) {
     const invalidTransactions = await transactionRepository.findInvalidTransactions();
     return res.json(invalidTransactions);
+  }
+
+  async delete(req: Request, res: Response) {
+    const { id } = req.params;
+
+    const deleted = await transactionRepository.deleteById(id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Transação não encontrada.' });
+    }
+
+    logger.info({ txId: id }, 'Transação deletada com sucesso.');
+    return res.status(204).send();
   }
 }
 
