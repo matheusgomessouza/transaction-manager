@@ -140,6 +140,35 @@ A Inteligência Artificial (IA) foi utilizada como uma parceira de pareamento (P
   - Modal importado e renderizado como componente filho
 - **`App.tsx`** e **`AppLayout.tsx`** limpos — removidas rota `/manage` e link no sidebar que não eram necessários
 
+### 1.7 Testes Automatizados
+
+#### Estratégia de Mock
+
+- **Mock do Prisma via `vi.hoisted`**: O Vitest hoisting do `vi.mock` impede o uso de variáveis declaradas com `const` fora do factory. A solução foi usar `vi.hoisted()` para declarar o objeto `prismaMock` antes do `vi.mock`, garantindo que o mock esteja disponível tanto no factory quanto nos testes.
+- **`vi.mock('../../../lib/prisma')`**: Intercepta o singleton `prisma` exportado de `src/lib/prisma.ts`, que é importado pelos repositories. Isso permite testar use cases e controllers sem tocar no banco real.
+- **`mockDecimal(value)`**: Helper que retorna `{ toNumber: () => value }` para simular o tipo `Decimal` do Prisma, que é retornado por `transaction.aggregate._sum.amount`.
+
+#### Cobertura de Testes (32 testes)
+
+| Arquivo                               | Testes | Cobertura                                                                                     |
+| ------------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `process-transaction.usecase.test.ts` | 20     | Validação Zod (6), Idempotência (1), Regras de negócio (6), Sucesso (3), calculateBalance (4) |
+| `transaction.controller.test.ts`      | 9      | POST single/array/inválido, GET resume/invalid, DELETE 204/404, health check                  |
+| `user.controller.test.ts`             | 3      | GET /users vazio, com saldo calculado, erro 500                                               |
+
+#### Arquivos de Teste
+
+- `apps/api/src/modules/transactions/use-cases/process-transaction.usecase.test.ts`
+- `apps/api/src/modules/transactions/controllers/transaction.controller.test.ts`
+- `apps/api/src/modules/users/controllers/user.controller.test.ts`
+
+#### Como Rodar
+
+```bash
+# Dentro do container
+cd /workspaces/transaction-manager/apps/api && npx vitest run
+```
+
 ---
 
 _Este documento reflete as fundações sobre as quais o projeto foi erguido, combinando automação por IA com diretrizes estritas de Engenharia de Software._
