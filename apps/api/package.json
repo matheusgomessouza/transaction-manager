@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec \"npx tsup src/server.ts --format cjs --silent && node dist/server.js\"",
+    "dev": "tsx watch src/server.ts",
     "build": "tsup src/server.ts --format cjs --minify",
     "start": "node dist/server.js",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'src/__tests__/**'",
+    "test:unit": "vitest run --exclude 'src/__tests__/**'",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "eslint src --ext .ts",
     "prisma:seed": "npx prisma db seed"
   },

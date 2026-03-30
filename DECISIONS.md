@@ -165,9 +165,73 @@ A Inteligência Artificial (IA) foi utilizada como uma parceira de pareamento (P
 #### Como Rodar
 
 ```bash
-# Dentro do container
-cd /workspaces/transaction-manager/apps/api && npx vitest run
+# Unitários (mock, sem banco) — dentro do container
+cd /workspaces/transaction-manager/apps/api && npm run test
+
+# Ou fora do container (host Windows)
+cd apps/api && npm run test
 ```
+
+### 1.8 Testes de Integração (Banco Real)
+
+#### Infraestrutura
+
+- **Service `test-db`** no `docker-compose.yml`: PostgreSQL separado para testes, porta 5433 mapeada no host, rede compartilhada com `app-network`.
+- **`vitest.integration.config.ts`**: Configuração separada que inclui `setupFiles` (carrega `dotenv/config` e define `DATABASE_URL` do test-db) e `globalSetup` (roda `prisma migrate deploy` antes dos testes).
+- **`setupTests.ts`**: Define `process.env.DATABASE_URL = 'postgresql://postgres:postgres@test-db:5432/test_db'` — hostname do container, não `localhost`.
+
+#### Cobertura de Testes de Integração (23 testes)
+
+| Suite                | Testes | Cobertura                                                                        |
+| -------------------- | ------ | -------------------------------------------------------------------------------- |
+| Users                | 2      | GET /users com saldo zero, com depósitos                                         |
+| Transactions         | 8      | POST deposit/withdraw/transfer, inválido, resume, invalid list, DELETE 204/404   |
+| Requests Malformados | 5      | Body vazio, type ausente, amount string, user_id não-UUID, JSON malformado       |
+| Edge Cases de Saldo  | 4      | Withdraw com saldo exato, transfer pra si mesmo, amount zero, saldo insuficiente |
+| Concorrência         | 2      | 5 depósitos simultâneos, withdraw+deposit simultâneos                            |
+
+#### Como Rodar
+
+```bash
+# Dentro do container
+cd /workspaces/transaction-manager/apps/api && npm run test:integration
+```
+
+#### Separação Unitário vs Integração
+
+- `npm run test` → roda só unitários (mock, sem banco), exclui `src/__tests__/**`
+- `npm run test:integration` → usa `vitest.integration.config.ts` com banco real
+- `apps/web/package.json` não tem script `test` para não conflitar com o `npm run test` do root
+
+### 1.9 Troubleshooting Adicional
+
+- **Erro `@rollup/rollup-linux-x64-gnu` ao rodar testes:**
+  - **O Problema:** `npm install` rodado no host Windows instala binários Win32 que não funcionam no container Linux. Vitest depende de rollup que busca o módulo nativo `@rollup/rollup-linux-x64-gnu`.
+  - **Como foi corrigido:** Remover `node_modules` e `package-lock.json`, e rodar `npm install` de dentro do container (`docker exec devcontainer-app-1 sh -c 'cd /workspaces/transaction-manager && npm install'`). O `package-lock.json` gerado é do Linux e deve ser commitado.
+- **Erro `lint-staged` não reconhecido no Windows:**
+  - **O Problema:** O hook `pre-commit` do Husky roda no host Windows, mas `lint-staged` tá no `node_modules` do container Linux (que pode não existir no host).
+  - **Como foi corrigido:** O `.husky/pre-commit` foi modificado para só rodar `npx lint-staged` se detectar o diretório `/workspaces/transaction-manager` (que só existe dentro do container). No host Windows, o hook pula silenciosamente.
+- **Erro `EACCES` no `.vite` cache do Vitest:**
+  - **O Problema:** Pastas criadas no `node_modules` pelo host Windows ficam com permissões incorretas dentro do container Linux, impedindo o Vitest de escrever no cache.
+  - **Como foi corrigido:** Adicionado `cache: false` no `vitest.config.ts` e reinstalação limpa dentro do container.
+- **Configuração do `devcontainer.json` com `postCreateCommand`:**
+  - Adicionado `postCreateCommand: "npm install && cd apps/api && npx prisma generate"` para que as dependências sejam instaladas automaticamente ao abrir o container pela primeira vez.
+  - Adicionado `forwardPorts: [3333, 5173, 5432, 5433]` para encaminhar todas as portas necessárias.
+- **Script `test` do `apps/web` conflitando com `npm run test` do root:**
+  - **O Problema:** `npm run test` no root do monorepo roda em todos os workspaces. O `apps/web` tinha `"test": "vitest run"` mas sem testes, causando erro.
+  - **Como foi corrigido:** Removido o script `test` do `apps/web/package.json`. O web não tem testes por enquanto.
+- **Tabelas Não Existentes Após Recriar Containers (`The table public.X does not exist`):**
+  - **O Problema:** Após `docker compose down` e `up`, ou ao subir o container pela primeira vez, endpoints retornavam HTTP 500 com erros como `The table public.User does not exist in the current database` e `The table public.Transaction does not exist`. O banco PostgreSQL existia mas estava vazio — as migrations do Prisma nunca tinham sido aplicadas.
+  - **Como foi corrigido:** Rodar `npx prisma migrate deploy` dentro do container para aplicar as migrations existentes, seguido de `npx tsx prisma/seed.ts` para popular o banco com os 3 usuários base (Alice, Bob, Carlos). Ambos os comandos devem ser executados no diretório `apps/api` dentro do container.
+  - **Prevenção:** Sempre rodar as migrations após recriar os containers. Usar `docker compose down` sem o flag `--volumes` para preservar os dados do banco entre reinicializações.
+- **Portas do Container Não Expostas para o Host (ERR_CONNECTION_REFUSED no Insomnia/Navegador):**
+  - **O Problema:** A API funcionava perfeitamente ao testar com `curl` de dentro do container, mas retornava `ERR_CONNECTION_REFUSED` ao acessar `localhost:3333` do host Windows (Insomnia, navegador). O `docker-compose.yml` não tinha a seção `ports` mapeando as portas do container para o host.
+  - **Como foi corrigido:** Adicionado `ports: ['3333:3333', '5173:5173']` no serviço `app` do `docker-compose.yml`, e `ports: ['5432:5432']` no serviço `db` para permitir conexão direta ao banco via host. Após editar o compose, rodar `docker compose up -d app db` para recriar os containers com as portas mapeadas.
+  - **Nota:** O container do VS Code (`transaction-manager_devcontainer-app-1`) e o container do compose (`devcontainer-app-1`) são entidades diferentes. As portas mapeadas só se aplicam ao container criado pelo `docker compose up`.
+- **Hostname `db` Não Resolvendo no Host (DATABASE_URL Incorreta):**
+  - **O Problema:** O arquivo `apps/api/.env` usa `db:5432` como hostname do banco, que é o alias interno da rede Docker. Quando se roda `npm run dev` diretamente no host Windows (fora do container), o Node.js não consegue resolver `db` e a conexão com o PostgreSQL falha silenciosamente, resultando em erros 500.
+  - **Como foi corrigido:** Manter `db:5432` no `.env` (correto para rodar dentro do container). Para rodar no host, alterar para `localhost:5432` temporariamente — mas a configuração oficial do projeto é rodar dentro do Dev Container.
+  - **Prevenção:** Sempre rodar `npm run dev` dentro do container via terminal do VS Code ou `docker exec`.
 
 ---
 

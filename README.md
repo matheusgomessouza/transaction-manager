@@ -1,149 +1,252 @@
-# 🏦 Transaction Manager
+# Transaction Manager
 
-Um sistema robusto para processamento de transações financeiras com uma interface gráfica moderna (Dashboard) para visualização de métricas, conciliação e tratamento de erros.
-
-Este projeto foi desenhado focando em resiliência, consistência de dados, boas práticas de Engenharia de Software e design de interface limpo.
+Sistema para processamento de transações financeiras com interface gráfica para visualização de métricas, conciliação e tratamento de erros.
 
 ---
 
-## ✨ Funcionalidades
+## Funcionalidades
 
-- **Processamento de Transações**: Suporta `deposit` (depósito), `withdraw` (saque) e `transfer` (transferência entre contas).
-- **Cálculo Consistente de Saldo**: O saldo não sofre de _Race Conditions_. É calculado dinamicamente em tempo real baseado no histórico de transações bem-sucedidas do usuário (inspirado em _Event Sourcing_). Isso resolve o problema de transações chegando fora de ordem temporal.
-- **Idempotência Garantida**: Evita efeitos colaterais de requisições duplicadas. Transações enviadas mais de uma vez com o mesmo `id` são ignoradas graciosamente, retornando sucesso ao cliente sem duplicar efeitos no banco de dados.
-- **Tratamento de Inconsistências**: Requisições inválidas (sem saldo, campos obrigatórios ausentes, contas inexistentes) não derrubam o sistema nem são perdidas; elas são interceptadas e salvas em uma base específica para auditoria e _troubleshooting_.
-- **Resiliência a Falhas**: Estratégia de _Retry com Exponential Backoff_ para lidar com indisponibilidades momentâneas ou deadlocks no Banco de Dados.
-- **Dashboard Web**: Uma interface em React inspirada em aplicações _fintech / terminal_ minimalistas para acompanhar as movimentações e as contas em tempo real.
+- **Processamento de Transações**: Suporta `deposit`, `withdraw` e `transfer`
+- **Cálculo de Saldo sob Demanda**: Saldo calculado dinamicamente via soma de transações (Event Sourcing) — sem race conditions
+- **Idempotência**: Transações duplicadas (mesmo `id`) são ignoradas graciosamente
+- **Tratamento de Inconsistências**: Transações inválidas salvas em tabela separada com motivo da falha
+- **Resiliência**: Retry com Exponential Backoff em falhas transitórias do banco
+- **CRUD de Transações**: Criar e deletar transações via interface (modal Manage Transactions)
+- **Dashboard Web**: Interface React dark-theme inspirada em terminais
 
 ---
 
-## 🛠 Tecnologias e Stack
-
-### Estrutura
-
-- **Monorepo** utilizando **NPM Workspaces** e **Turborepo** para orquestração de scripts.
+## Stack
 
 ### Backend (`apps/api`)
 
-- **Node.js** com **Express** e **TypeScript**
-- **PostgreSQL** (Banco de dados relacional robusto para sistemas financeiros)
-- **Prisma ORM** (Modelagem de dados e Type Safety)
-- **Zod** (Validação estrita de _schemas/payloads_ HTTP)
-- **Vitest** (Testes automatizados)
-- **Pino** (Logs estruturados de alta performance)
+| Tecnologia                     | Uso                              |
+| ------------------------------ | -------------------------------- |
+| Node.js + Express + TypeScript | API REST                         |
+| PostgreSQL                     | Banco de dados                   |
+| Prisma ORM (v7 + adapter-pg)   | ORM e migrations                 |
+| Zod                            | Validação de payloads            |
+| Vitest + Supertest             | Testes unitários e de integração |
+| Pino                           | Logs estruturados                |
 
 ### Frontend (`apps/web`)
 
-- **React 18** com **Vite** e **TypeScript**
-- **TailwindCSS** (Estilização _Utility-first_)
-- **TanStack React Query** (Gerenciamento de cache e estados assíncronos)
-- **Axios** (Cliente HTTP)
+| Tecnologia                   | Uso                       |
+| ---------------------------- | ------------------------- |
+| React 18 + Vite + TypeScript | SPA                       |
+| TailwindCSS                  | Estilização               |
+| TanStack React Query         | Cache e estado assíncrono |
+| Axios                        | Cliente HTTP              |
+
+### Infraestrutura
+
+| Tecnologia                 | Uso                         |
+| -------------------------- | --------------------------- |
+| Docker + Dev Container     | Ambiente de desenvolvimento |
+| Turborepo + NPM Workspaces | Monorepo                    |
+| Husky + lint-staged        | Git hooks                   |
+| ESLint + Prettier          | Code quality                |
 
 ---
 
-## 🏗 Arquitetura
+## Arquitetura
 
-O backend adota princípios da _Clean Architecture_ e _Solid_:
-
-- **Controllers**: Lidam apenas com as requisições HTTP e respostas.
-- **Use Cases**: Contêm as regras de negócio puras (validação, idempotência, cálculos). Totalmente agnósticos ao banco de dados e frameworks externos.
-- **Repositories**: Isolam a comunicação com o banco de dados via Prisma, facilitando a injeção de dependências e os testes unitários.
-
----
-
-## ⚙️ Como Executar (Ambiente de Desenvolvimento)
-
-### Pré-requisitos
-
-- Node.js (v18 ou superior)
-- Docker e Docker Compose (para subir o banco de dados)
-
-### Passos
-
-1. **Clone o repositório:**
-
-   ```bash
-   git clone <url-do-repositorio>
-   cd transaction-manager
-   ```
-
-2. **Instale as dependências:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Suba o banco de dados PostgreSQL:**
-   (Caso utilize um Dev Container, o banco já pode estar configurado automaticamente. Senão, utilize o docker-compose caso exista na sua infra, ou aponte uma URI válida).
-
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Configure as Variáveis de Ambiente:**
-   Na pasta `apps/api`, crie um arquivo `.env` com a conexão para o banco de dados:
-
-   ```env
-   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/transaction_manager?schema=public"
-   ```
-
-5. **Execute as Migrations e o Seed do Banco de Dados:**
-   Isso criará as tabelas e adicionará usuários iniciais para teste.
-
-   ```bash
-   cd apps/api
-   npx prisma db push
-   npm run prisma:seed
-   cd ../../
-   ```
-
-6. **Inicie os serviços simultaneamente (Frontend e Backend):**
-   Na raiz do monorepo, execute:
-   ```bash
-   npm run dev
-   ```
-
-A API estará rodando em `http://localhost:3333` e o Dashboard Web em `http://localhost:5173`.
+```
+apps/
+├── api/                          # Backend
+│   ├── prisma/
+│   │   ├── schema.prisma         # Modelo de dados
+│   │   ├── seed.ts               # Dados iniciais
+│   │   └── migrations/           # Migrations SQL
+│   └── src/
+│       ├── lib/                  # Prisma client, logger
+│       ├── modules/
+│       │   ├── transactions/     # Módulo de transações
+│       │   │   ├── controllers/  # HTTP handlers
+│       │   │   ├── routes/       # Express routes
+│       │   │   ├── repositories/ # Acesso a dados (Prisma)
+│       │   │   ├── use-cases/    # Regras de negócio
+│       │   │   └── schemas/      # Validação Zod
+│       │   └── users/            # Módulo de usuários
+│       ├── routes/               # Agregação de rotas
+│       ├── server.ts             # Entry point Express
+│       └── __tests__/            # Testes de integração
+└── web/                          # Frontend React
+    └── src/
+        ├── app/                  # Router e config
+        ├── features/             # Feature-sliced (dashboard, users, transactions)
+        ├── components/           # Layout compartilhado
+        └── lib/                  # Axios config
+```
 
 ---
 
-## 📚 Endpoints Principais (API)
+## Como Executar
 
-A base URL é: `http://localhost:3333`
+### Opção 1: Dev Container (Recomendado)
 
-- `POST /transactions` - Envia uma transação ou um _array_ de transações para processamento.
-- `GET /transactions/resume` - Retorna as transações válidas e processadas.
-- `GET /transactions/invalid` - Retorna log das transações que falharam em validação ou regras de negócio.
-- `GET /users` - Lista os usuários com o saldo atualizado.
+Requer **Docker** e **VS Code** com a extensão **Dev Containers**.
 
-_Exemplo de Payload de Depósito (`POST /transactions`):_
+1. Clone o repositório
+2. Abra no VS Code
+3. Clique em **"Reopen in Container"** (ou `Ctrl+Shift+P` → `Dev Containers: Reopen in Container`)
+4. O container instala dependências e gera o Prisma client automaticamente (`postCreateCommand`)
+5. Após o container abrir, execute:
+
+```bash
+# Rode as migrations e o seed
+cd apps/api
+npx prisma migrate deploy
+npx tsx prisma/seed.ts
+
+# Inicie o backend e frontend
+cd ../..
+npm run dev
+```
+
+A API roda em `http://localhost:3333` e o frontend em `http://localhost:5173`.
+
+### Opção 2: Docker Compose Manual
+
+```bash
+# Subir os bancos (db e test-db)
+cd .devcontainer
+docker compose up -d
+
+# Instalar dependências
+cd ..
+npm install
+
+# Configurar .env em apps/api
+echo 'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres' > apps/api/.env
+
+# Rodar migrations e seed
+cd apps/api
+npx prisma migrate deploy
+npx tsx prisma/seed.ts
+
+# Iniciar
+cd ../..
+npm run dev
+```
+
+### Opção 3: Sem Docker
+
+Requer PostgreSQL rodando localmente na porta 5432.
+
+```bash
+npm install
+
+# Criar .env em apps/api
+echo 'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres' > apps/api/.env
+
+cd apps/api
+npx prisma migrate deploy
+npx tsx prisma/seed.ts
+cd ../..
+npm run dev
+```
+
+---
+
+## Testes
+
+### Unitários (mock, sem banco)
+
+```bash
+cd apps/api
+npm run test
+```
+
+32 testes cobrindo: validação Zod, idempotência, regras de negócio, cálculo de saldo, endpoints via supertest.
+
+### Integração (com banco real)
+
+Requer o container rodando (service `test-db`):
+
+```bash
+cd apps/api
+npm run test:integration
+```
+
+23 testes cobrindo: endpoints HTTP com supertest, requests malformados, edge cases de saldo, concorrência (Promise.all).
+
+### Todos de uma vez
+
+```bash
+cd apps/api
+npm run test && npm run test:integration
+```
+
+---
+
+## Endpoints da API
+
+Base URL: `http://localhost:3333`
+
+| Método   | Rota                    | Descrição                             |
+| -------- | ----------------------- | ------------------------------------- |
+| `GET`    | `/health`               | Health check                          |
+| `POST`   | `/transactions`         | Processar transação (single ou array) |
+| `GET`    | `/transactions/resume`  | Listar transações válidas             |
+| `GET`    | `/transactions/invalid` | Listar transações inválidas           |
+| `DELETE` | `/transactions/:id`     | Deletar transação (saldo recalculado) |
+| `GET`    | `/users`                | Listar usuários com saldo             |
+
+### Exemplos de Payload
+
+**Depósito:**
 
 ```json
 {
-  "id": "e67eb3f1-bd12-4217-b7cd-26514bc5456f",
+  "id": "uuid-unico",
   "type": "deposit",
   "amount": 1500.0,
   "user_id": "uuid-do-usuario",
-  "timestamp": "2023-10-24T14:32:01Z"
+  "timestamp": "2026-03-30T12:00:00.000Z"
 }
 ```
 
-_Exemplo de Payload de Transferência (`POST /transactions`):_
+**Transferência:**
 
 ```json
 {
-  "id": "f58bc100-bd12-4217-b7cd-26514bc5451a",
+  "id": "uuid-unico",
   "type": "transfer",
-  "amount": 100.0,
+  "amount": 500.0,
   "from_user_id": "uuid-origem",
   "to_user_id": "uuid-destino",
-  "timestamp": "2023-10-24T15:00:00Z"
+  "timestamp": "2026-03-30T12:00:00.000Z"
 }
 ```
 
 ---
 
-## 📄 Documentação Auxiliar
+## Scripts Disponíveis
 
-As decisões detalhadas de arquitetura, justificativas de uso das tecnologias e todo o fluxo de **Uso de IA** durante o desenvolvimento estão documentados no arquivo:
-👉 [**DECISIONS.md**](./DECISIONS.md)
+| Script                     | Descrição                           |
+| -------------------------- | ----------------------------------- |
+| `npm run dev`              | Inicia backend + frontend           |
+| `npm run build`            | Build de produção                   |
+| `npm run test`             | Testes unitários (apps/api)         |
+| `npm run test:integration` | Testes de integração com banco real |
+| `npm run lint`             | ESLint                              |
+
+---
+
+## Troubleshooting Comum
+
+- **`@rollup/rollup-linux-x64-gnu` não encontrado**: Rodar `npm install` de dentro do container, não do host
+- **`EACCES` no `.vite`**: `node_modules` criado pelo Windows — reinstalar dentro do container
+- **`lint-staged` não reconhecido**: O hook `pre-commit` só roda dentro do container
+- **Portas não acessíveis**: Verificar se o Dev Container está conectado e `forwardPorts` configurado
+- **Tabelas não existem**: Rodar `npx prisma migrate deploy` dentro do container
+
+Detalhes completos em [DECISIONS.md](./DECISIONS.md).
+
+---
+
+## Documentação
+
+- [**DECISIONS.md**](./DECISIONS.md) — Decisões arquiteturais, troubleshooting e uso de IA
+- [**design/transaction-manager.pen**](./design/transaction-manager.pen) — Design system no Pencil MCP

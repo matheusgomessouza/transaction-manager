@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
-const mockDecimal = (value: number) => ({ toNumber: () => value });
-
 const { prismaMock } = vi.hoisted(() => {
   return {
     prismaMock: {
