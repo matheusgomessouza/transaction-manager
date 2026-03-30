@@ -86,6 +86,59 @@ A Inteligência Artificial (IA) foi utilizada como uma parceira de pareamento (P
 - **Atualização Abrupta do Prisma v7:**
   - **O Problema:** Houve um erro no _build_ (Schema Error) em tempo real indicando: `The datasource property url is no longer supported in schema files`.
   - **Como foi corrigido:** O usuário passou o log exato de erro. A IA então consumiu autonomamente as documentações atualizadas do repositório do Prisma via MCP, entendeu que a versão 7 introduziu uma mudança massiva ("Breaking Change"), instalou o pacote `@prisma/adapter-pg` e refatorou todo o sistema de conexão para utilizar o arquivo moderno `prisma.config.ts`.
+- **Conflitos de Ambiente Dev Container e Build Cross-Platform:**
+  - **O Problema:** Como o projeto foi iniciado em um host Windows e depois passado para rodar dentro de um Dev Container baseado em Linux via Docker, pacotes com dependências nativas (como `esbuild` no backend e `rollup` via Vite no frontend) começaram a quebrar com erros de incompatibilidade de arquitetura (`@esbuild/win32-x64` presente ao invés de `linux-x64`).
+  - **Como foi corrigido:** A IA orquestrou a remoção completa das pastas `node_modules` conflitantes e realizou a reinstalação de dentro do container Linux (`npm install` pelo `docker exec`). Também foram explicitadas dependências opcionais no `package.json` (`@esbuild/linux-x64` e `@rollup/rollup-linux-x64-gnu`) para garantir que os binários corretos fossem baixados independentemente do host.
+- **Port Forwarding e Redes no Docker:**
+  - **O Problema:** Após estabilizar os builds, o frontend React disparava erros constantes de `ERR_CONNECTION_REFUSED` ao tentar chamar a API no backend rodando no mesmo container, apesar das portas estarem ativas no terminal interno.
+  - **Como foi corrigido:** Identificou-se uma dupla falha de binding e DNS. A IA modificou o servidor Express (`server.ts`) para realizar o listen na interface `'0.0.0.0'` em vez de `localhost` (permitindo saídas para a rede Docker), configurou explicitamente o atributo `forwardPorts` no `devcontainer.json` para expor as portas 3333 e 5173 para o host Windows do usuário, e adicionou a injeção via `dotenv/config` na raiz do server para que o Node.js resolvesse corretamente o alias `db` (hostname do container do Postgres) lendo o `DATABASE_URL` no arranque do processo.
+- **Bug de Resolução TSX e Prisma v7 no DevContainer:**
+  - **O Problema:** Ao tentar usar `tsx watch` no backend, o processo falhava silenciosamente e deixava portas travadas (EADDRINUSE). O erro oculto acusava: `Cannot find module '.prisma/client/default'`.
+  - **Como foi corrigido:** O pacote `tsx` tem problemas conhecidos de resolução (via esbuild) com os exports duplos gerados pelo Prisma v7 quando rodando em sistemas de arquivos montados via Dev Container. A IA diagnosticou que a versão compilada (`tsup` build + `node dist/server.js`) ou execuções limpas sem o watch (`tsx src/server.ts`) funcionavam perfeitamente. A solução adotada foi alterar o script de dev do backend para utilizar o `nodemon` chamando o `tsx` (sem a flag `watch` que aciona a falha do esbuild), contornando o bug de forma elegante e mantendo o hot-reload funcional.
+- **Tabelas Não Existentes Após `docker compose down`:**
+  - **O Problema:** Ao recriar os containers com `docker compose down && up`, o volume do Postgres era destruído junto, apagando todas as tabelas e dados. Endpoints como `/users` e `/transactions/resume` retornavam HTTP 500 com erro `The table public.Transaction does not exist in the current database`.
+  - **Como foi corrigido:** Foi necessário rodar `prisma migrate dev` para recriar as tabelas e `npx tsx prisma/seed.ts` para popular com os 3 usuários base. Em seguida, documentou-se que `docker compose down` sem o flag `--volumes` preserva os dados.
+- **Port Mapping Não Funcionando Após Recriação do Container:**
+  - **O Problema:** O `docker-compose.yml` tinha a seção `ports` correta (`3333:3333`, `5173:5173`), mas ao rodar `docker compose up` de dentro da pasta `.devcontainer`, criava-se um container novo (`devcontainer-app-1`) sem conflito com o container do VS Code (`transaction-manager_devcontainer-app-1`). O container do VS Code não tinha portas mapeadas.
+  - **Como foi corrigido:** A solução foi usar o container novo (`devcontainer-app-1`) que já tinha as portas mapeadas corretamente, e garantir que o backend e frontend fossem iniciados dentro dele via `docker exec`.
+- **tsx watch Não Carrega Novas Rotas Dinamicamente:**
+  - **O Problema:** Após adicionar o endpoint `DELETE /transactions/:id` e novas rotas no controller, o `tsx watch` rodando dentro do container não reconhecia as novas rotas — endpoints retornavam `Cannot GET /transactions/resume` mesmo com o código correto no arquivo. O `tsx watch` parecia estar servindo uma versão em cache do código.
+  - **Como foi corrigido:** A solução final foi abandonar o `tsx watch`/`nodemon` no backend e usar uma abordagem mais confiável: compilar com `tsup` (`npx tsup src/server.ts --format cjs`) e rodar com `node dist/server.js`. O script de dev foi atualizado para: `nodemon --watch src --ext ts --exec "npx tsup src/server.ts --format cjs --silent && node dist/server.js"`. Isso garante que a cada alteração, o código é recompilado do zero e todas as rotas são carregadas corretamente.
+
+### 1.6 Funcionalidades Implementadas (CRUD de Transações)
+
+#### Backend
+
+- **Endpoint `DELETE /transactions/:id`**: Deleta uma transação existente pelo ID. O saldo dos usuários afetados é recalculado automaticamente, já que o cálculo é feito sob demanda (soma de eventos). Retorna 204 em sucesso ou 404 se a transação não existir.
+  - **Arquivos modificados:**
+    - `apps/api/src/modules/transactions/repositories/transaction.repository.ts` — método `deleteById(id)` adicionado
+    - `apps/api/src/modules/transactions/controllers/transaction.controller.ts` — método `delete` adicionado com import do logger
+    - `apps/api/src/modules/transactions/routes/transaction.routes.ts` — rota `transactionRoutes.delete('/:id', transactionController.delete)` adicionada
+- **Decisão de não ter `PUT /transactions/:id`**: Optou-se por não implementar atualização de transações, pois o modelo se aproxima de Event Sourcing — cada transação é um evento imutável. Permitir updates quebraria a idempotência e introduziria complexidade desnecessária (race conditions no recálculo de saldo). Se o usuário errar algo, ele deleta e recria.
+
+#### Design (Pencil MCP)
+
+- **Tela `manageTransactionsScreen`** criada no `design/transaction-manager.pen`:
+  - Sidebar com navegação (Dashboard, Users & Balances, Manage Transactions ativo)
+  - Formulário de ADD com seletor de tipo (deposit/withdraw/transfer), campos de usuário, amount e botão Process Transaction
+  - Campos `from_user_id` e `to_user_id` para tipo transfer
+  - Lista de transações recentes com colunas Tx ID, Type, Amount, User e botão delete
+  - Exportado como PNG em `design/exports/n5r9O.png`
+
+#### Frontend (React)
+
+- **`ManageTransactionsModal.tsx`** (`apps/web/src/features/transactions/components/ManageTransactionsModal.tsx`):
+  - Modal com overlay escuro que abre sobre qualquer página
+  - Formulário ADD com seletor de tipo (deposit/withdraw/transfer), dropdowns de usuário (mostram nome + saldo), campo amount
+  - Para transfer: dois dropdowns (sender e receiver) com validação de usuários diferentes
+  - Lista DELETE com tabela de transações recentes, cores por tipo (verde=deposit, vermelho=withdraw, azul=transfer) e botão delete
+  - Feedback visual de sucesso/erro após cada operação
+  - Queries invalidadas automaticamente após ADD/DELETE (atualiza saldos em tempo real)
+- **`UsersList.tsx`** atualizado:
+  - Botão renomeado de "+ New Transaction" para "+ Manage Transactions"
+  - `onClick` abre o modal em vez de navegar para outra página
+  - Modal importado e renderizado como componente filho
+- **`App.tsx`** e **`AppLayout.tsx`** limpos — removidas rota `/manage` e link no sidebar que não eram necessários
 
 ---
 

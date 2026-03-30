@@ -6,5 +6,6 @@ const transactionRoutes = Router();
 transactionRoutes.post('/', transactionController.process);
 transactionRoutes.get('/resume', transactionController.getResume);
 transactionRoutes.get('/invalid', transactionController.getInvalid);
+transactionRoutes.delete('/:id', transactionController.delete);
 
 export { transactionRoutes };

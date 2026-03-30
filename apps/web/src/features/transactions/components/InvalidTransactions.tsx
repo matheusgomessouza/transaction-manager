@@ -1,31 +1,26 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../../lib/api';
 
-const MOCK_INVALID_TX = [
-  {
-    id: 'tx_err_001',
-    user: 'user_1042',
-    amount: '$500.00',
-    reason: 'insufficient_funds',
-    timestamp: '2023-10-24 14:32:01',
-  },
-  {
-    id: 'tx_err_002',
-    user: 'user_8891',
-    amount: '$1,200.00',
-    reason: 'daily_limit_exceeded',
-    timestamp: '2023-10-24 14:35:12',
-  },
-  {
-    id: 'tx_err_003',
-    user: 'user_9012',
-    amount: '$50.00',
-    reason: 'invalid_destination_account',
-    timestamp: '2023-10-24 14:40:05',
-  },
-];
+type InvalidTransaction = {
+  id: string;
+  reason: string;
+  payload: { id?: string; [key: string]: unknown };
+  createdAt: string;
+};
 
 export default function InvalidTransactions() {
-  const transactions = useMemo(() => MOCK_INVALID_TX, []);
+  const {
+    data: transactions = [],
+    isLoading,
+    isError,
+  } = useQuery<InvalidTransaction[]>({
+    queryKey: ['transactions', 'invalid'],
+    queryFn: async () => {
+      const response = await api.get('/transactions/invalid');
+      return response.data;
+    },
+  });
 
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
@@ -56,32 +51,53 @@ export default function InvalidTransactions() {
         </h2>
         <div className="flex flex-col gap-2 w-full overflow-x-auto">
           <div className="flex w-full min-w-[800px] py-2 gap-4">
-            <span className="text-small text-textTertiary w-32 flex-shrink-0">Tx ID</span>
-            <span className="text-small text-textTertiary w-32 flex-shrink-0">User</span>
-            <span className="text-small text-textTertiary w-32 flex-shrink-0">Amount</span>
+            <span className="text-small text-textTertiary w-64 flex-shrink-0">ID</span>
+            <span className="text-small text-textTertiary w-48 flex-shrink-0">
+              Attempted ID / Payload
+            </span>
             <span className="text-small text-textTertiary flex-1">Reason</span>
             <span className="text-small text-textTertiary w-48 flex-shrink-0">Timestamp</span>
           </div>
           <div className="w-full min-w-[800px] h-px bg-borderSecondary" />
 
-          {transactions.map((tx, idx) => (
-            <React.Fragment key={tx.id}>
-              <div className="flex w-full min-w-[800px] py-2 gap-4 items-center">
-                <span className="text-base text-accent-error w-32 flex-shrink-0">{tx.id}</span>
-                <span className="text-base text-textPrimary w-32 flex-shrink-0">{tx.user}</span>
-                <span className="text-base font-semibold text-textPrimary w-32 flex-shrink-0">
-                  {tx.amount}
-                </span>
-                <span className="text-base text-textSecondary flex-1">{tx.reason}</span>
-                <span className="text-base text-textTertiary w-48 flex-shrink-0">
-                  {tx.timestamp}
-                </span>
-              </div>
-              {idx < transactions.length - 1 && (
-                <div className="w-full min-w-[800px] h-px bg-borderSecondary" />
-              )}
-            </React.Fragment>
-          ))}
+          {isLoading && <span className="text-textTertiary py-4">Loading logs...</span>}
+          {isError && <span className="text-accent-error py-4">Failed to load logs.</span>}
+
+          {transactions.map((tx, idx) => {
+            const attemptedId = tx.payload?.id || 'Unknown';
+
+            return (
+              <React.Fragment key={tx.id}>
+                <div className="flex w-full min-w-[800px] py-2 gap-4 items-center">
+                  <span
+                    className="text-base text-textTertiary w-64 flex-shrink-0 truncate"
+                    title={tx.id}
+                  >
+                    {tx.id}
+                  </span>
+                  <span
+                    className="text-base text-textPrimary w-48 flex-shrink-0 truncate"
+                    title={attemptedId}
+                  >
+                    {attemptedId}
+                  </span>
+                  <span className="text-base text-accent-error flex-1 truncate" title={tx.reason}>
+                    {tx.reason}
+                  </span>
+                  <span className="text-base text-textTertiary w-48 flex-shrink-0">
+                    {new Date(tx.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                {idx < transactions.length - 1 && (
+                  <div className="w-full min-w-[800px] h-px bg-borderSecondary" />
+                )}
+              </React.Fragment>
+            );
+          })}
+
+          {!isLoading && transactions.length === 0 && (
+            <span className="text-textTertiary py-4">No invalid transactions recorded.</span>
+          )}
         </div>
       </section>
     </div>

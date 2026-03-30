@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'express-async-errors';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -15,7 +16,6 @@ app.get('/health', (req, res) => {
 
 app.use(routes);
 
-// Middleware global de tratamento de erros
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error({ error: err.message, stack: err.stack }, 'Erro não tratado capturado pelo Express');
@@ -29,7 +29,7 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 const PORT = process.env.PORT || 3333;
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  app.listen(Number(PORT), '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT}`);
   });
 }
