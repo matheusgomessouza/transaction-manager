@@ -1,6 +1,7 @@
 {
   "name": "transaction-manager-monorepo",
   "private": true,
+  "packageManager": "npm@10.11.1",
   "workspaces": [
     "apps/*",
     "packages/*"
