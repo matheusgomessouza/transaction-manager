@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "../../node_modules/.bin/tsup src/server.ts --format cjs --minify",
+    "build": "tsup src/server.ts --format cjs --minify",
     "start": "node dist/server.js",
     "test": "vitest run --exclude 'src/__tests__/**'",
     "test:unit": "vitest run --exclude 'src/__tests__/**'",
