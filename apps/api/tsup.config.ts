@@ -7,4 +7,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: true,
+  external: ['dotenv', '@prisma/client', '@prisma/adapter-pg'],
 });
