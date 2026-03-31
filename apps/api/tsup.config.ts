@@ -7,5 +7,15 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: true,
-  external: ['dotenv', '@prisma/client', '@prisma/adapter-pg'],
+  external: [
+    'dotenv',
+    'express',
+    'express-async-errors',
+    'cors',
+    '@prisma/client',
+    '@prisma/adapter-pg',
+    'pg',
+    'pino',
+    'zod',
+  ],
 });
