@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Force dev deps (NODE_ENV=production skips tsup/typescript)
+export NODE_ENV=development
 npm install
 
 npx prisma generate --schema apps/api/prisma/schema.prisma
